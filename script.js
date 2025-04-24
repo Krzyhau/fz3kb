@@ -1,8 +1,7 @@
-const canvas = document.body.children[0];
-const ctx = canvas.getContext('2d');
+const ctx = document.body.children[0].getContext('2d');
 const { sin, cos, sqrt, PI, atan2, min, max, abs } = Math;
 const HALF_PI = PI / 2, TWO_PI = PI * 2;
-const SCREEN_SIZE = canvas.width;
+const SCREEN_SIZE = 720;
 
 // === Inputs
 
@@ -16,34 +15,35 @@ const RIGHT_KEY = 'ArrowRight';
 const SHIFT_LEFT_KEY = 'a';
 const SHIFT_RIGHT_KEY = 'd';
 
-document.onkeydown = e => {
-    if (e.key == JUMP_KEY) jumpingInput = true;
-    if (e.key == LEFT_KEY) goingLeftInputPart = -1;
-    if (e.key == RIGHT_KEY) goingRightInputPart = 1;
-    if (e.key == SHIFT_LEFT_KEY) shiftPerspective(HALF_PI);
-    if (e.key == SHIFT_RIGHT_KEY) shiftPerspective(-HALF_PI);
-}
-document.onkeyup = e => {
-    if (e.key == JUMP_KEY) jumpingInput = false;
-    if (e.key == LEFT_KEY) goingLeftInputPart = 0;
-    if (e.key == RIGHT_KEY) goingRightInputPart = 0;
+document.onkeydown = e => onInputChange(e.key, true);
+document.onkeyup = e => onInputChange(e.key, false);
+function onInputChange(key, pressed) {
+    if (key == JUMP_KEY) jumpingInput = pressed;
+    if (key == LEFT_KEY) goingLeftInputPart = pressed ? -1 : 0;
+    if (key == RIGHT_KEY) goingRightInputPart = pressed ? 1 : 0;
+    if (pressed) {
+        if (key == SHIFT_LEFT_KEY) shiftPerspective(-HALF_PI);
+        if (key == SHIFT_RIGHT_KEY) shiftPerspective(HALF_PI);
+    }
 }
 
 // === Game data
 
+// defined as [r, g, b]
 const colors = [
-    [255, 255, 255],
-    [255,0,0],
-    [240, 180, 60],
-    [238, 75, 43],
-    [110, 220, 230],
-    [117, 185, 52],
+    [255, 255, 255], // 0 - player's cube
+    [255,0,0], // 1 - player's red hat
+    [240, 180, 60], // 2 - yellow platform
+    [238, 75, 43], // 3 - red platform
+    [110, 220, 230], // 4 - cyan platform
+    [117, 185, 52], // 5 - green platform
 ]
 
+// defined as [x, y, z, width, height, length, angle, colorId]
 const platforms = [
-    [0, -1, 0, 3, 1, 3, 0, 2],
-    [5, 1, 5, 1, 2, 3, 0, 3],
-    [10, -3, 10, 3, 8, 3, 0, 4],
+    [0, -2, 0, 3, 1, 3, 0, 2],
+    [5, -1, 5, 1, 2, 3, 0, 3],
+    [10, -2, 10, 3, 8, 3, 0, 4],
 ]
 
 // === Game logic
@@ -61,19 +61,23 @@ var cameraZ = 0;
 var cameraAngle = 0;
 var cameraSize = 15;
 
+var cameraRightX;
+var cameraRightZ;
 var cameraForwardX;
 var cameraForwardZ;
 
 var shifting = false;
 var shiftStart = 0;
-var shiftEnd = 0;
-var shiftTime = 0;
 var shiftDirection = 0;
-var timeSinceFell = 0;
+
+var shiftTimer = 0;
+var sinceTeleportTimer = 0;
 
 setInterval(gameLoop, 15);
 function gameLoop() {
+    updateTimers();
     updateCamera();
+
     if (shifting) {
         shiftingUpdate();
     } else {
@@ -81,36 +85,46 @@ function gameLoop() {
         applyPlayerMovement();
         checkSafetyTeleport();
     }
+
     draw();
 }
 
-function updateCamera() {
-    cameraForwardX = cos(cameraAngle);
-    cameraForwardZ = sin(cameraAngle);
+function updateTimers() {
+    sinceTeleportTimer += 0.01;
+}
 
+function updateCamera() {
+    cameraRightX = cos(cameraAngle);
+    cameraRightZ = sin(cameraAngle);
+    cameraForwardX = -cameraRightZ;
+    cameraForwardZ = cameraRightX;
+
+    // ease camera horizontally
     cameraX += (playerX - cameraX) * 0.1;
     cameraZ += (playerZ - cameraZ) * 0.1;
-    var targetCameraY = playerY + 0.25 * cameraSize;
-    cameraY += (targetCameraY - cameraY) * min(1, timeSinceFell * 0.5);
+
+    // target point slightly higher than player to keep them little bit below
+    var targetCameraY = playerY + 0.2 * cameraSize;
+    // easing only right after falling for a nice transition
+    cameraY += (targetCameraY - cameraY) * min(1, sinceTeleportTimer);
 }
 
 function shiftPerspective(direction) {
     if (shifting) return;
 
-    shiftDirection = direction;
     shifting = true;
+    shiftTimer = 0
+    shiftDirection = direction;
     shiftStart = cameraAngle;
-    shiftEnd = cameraAngle + direction;
-    shiftTime = 0
 }
 
 function shiftingUpdate() {
-    let shiftSineProgress = -(cos(PI * shiftTime) - 1) / 2;
-    cameraAngle = shiftStart + (shiftEnd - shiftStart) * shiftSineProgress;
+    let shiftSineProgress = -(cos(PI * shiftTimer) - 1) / 2;
+    cameraAngle = shiftStart + shiftDirection * shiftSineProgress;
 
-    shiftTime += 0.02;
-    if (shiftTime > 1) {
-        cameraAngle = shiftEnd % TWO_PI;
+    shiftTimer += 0.02;
+    if (shiftTimer > 1) {
+        cameraAngle = (shiftStart + shiftDirection) % TWO_PI;
         shifting = false;
     }
 }
@@ -136,10 +150,11 @@ function handleGravity() {
 }
 
 function applyPlayerMovement() {
-    playerX += playerHorizontalVelocity * cameraForwardX;
-    playerZ += playerHorizontalVelocity * -cameraForwardZ;
+    playerX += playerHorizontalVelocity * cameraRightX;
+    playerZ += playerHorizontalVelocity * cameraRightZ;
 
-    // handling collisions between x and y axis movement to improve jumping into corners
+    // handling collisions between x and y axis movement 
+    // to improve jumping into corners
     handleCollisions();
 
     playerY += playerVerticalVelocity;
@@ -147,60 +162,67 @@ function applyPlayerMovement() {
 
 function handleCollisions() {
     playerGrounded = false;
-    platforms.forEach(platform => {
-        checkCollision(platform);
-    });
+    platforms.forEach(handlePlatformCollision);
 }
 
-function checkCollision(platform) {
+function handlePlatformCollision(platform) {
     let [platformX, platformY, platformZ, width, height, length] = platform;
-
-    let projectedPlayerX = playerX * cameraForwardX - playerZ * cameraForwardZ;
-    let platformProjectedX = platformX * cameraForwardX - platformZ * cameraForwardZ;
     
-    let projectedWidth = abs(width * cameraForwardX) + abs(length * cameraForwardZ);
-    let projectedLength = abs(length * cameraForwardX) + abs(width * cameraForwardZ);
+    let projectedWidth = abs(width * cameraRightX) + abs(length * cameraRightZ);
+    let projectedLength = abs(length * cameraRightX) + abs(width * cameraRightZ);
 
-    let projectedXDelta = abs(projectedPlayerX - platformProjectedX);
-    let projectedYDelta = abs(playerY + 0.5 - platformY);
-    let projectedYDeltaAfterMove = abs(playerY + playerVerticalVelocity + 0.5 - platformY);
+    let widthDistanceThreshold = projectedWidth / 2 + 0.5;
+    let heightDistanceThreshold = height / 2 + 0.5;
+    let lengthDistanceThreshold = projectedLength / 2 + 0.5;
 
-    if (projectedXDelta < projectedWidth / 2 + 0.5) {
-        let projectedPlayerDepth = playerZ * cameraForwardX + playerX * cameraForwardZ;
-        let platformProjectedDepth = platformZ * cameraForwardX + platformX * cameraForwardZ;
-        let projectedDepthDelta = projectedPlayerDepth - platformProjectedDepth;
+    let projectedXDelta = (platformX - playerX) * cameraRightX + (platformZ - playerZ) * cameraRightZ;
+    let projectedXDeltaAbs = abs(projectedXDelta);
+    
+    if (projectedXDeltaAbs < widthDistanceThreshold) {
+        let projectedYDeltaAbs = abs(playerY - platformY);
+        let projectedYAfterMoveDeltaAbs = abs(playerY + playerVerticalVelocity - platformY);
+        let projectedDepthDelta = (platformX - playerX) * cameraForwardX + (platformZ - playerZ) * cameraForwardZ;
 
-        if (projectedYDelta < height / 2 + 0.5) {
-            if (projectedDepthDelta > 0) {
-                projectedDepthDelta += projectedLength / 2 + 0.5;
-                playerX -= (projectedDepthDelta) * cameraForwardZ;
-                playerZ -= (projectedDepthDelta) * cameraForwardX;
+        let correctionDistance = 0;
+        
+        let overlappingPlatform = projectedYDeltaAbs < heightDistanceThreshold;
+        let willOverlapPlatformAfterMove = projectedYAfterMoveDeltaAbs < heightDistanceThreshold;
+        
+        if (overlappingPlatform) {
+            let isBehindPlatformFrontFace = projectedDepthDelta < lengthDistanceThreshold;
+            if (isBehindPlatformFrontFace) {
+                correctionDistance = projectedDepthDelta - lengthDistanceThreshold;
             }
-            
-        } else if (projectedYDeltaAfterMove < height / 2 + 0.5) {
-            playerY = platformY + height / 2;
+        }
+        else if (willOverlapPlatformAfterMove) {
+            playerY = platformY + heightDistanceThreshold
             playerVerticalVelocity = 0;
             playerGrounded = true;
 
-            if (abs(projectedDepthDelta) > projectedLength / 2 + 0.5) {
-                projectedDepthDelta += projectedLength / 2 - 0.5;
-                playerX -= (projectedDepthDelta) * cameraForwardZ;
-                playerZ -= (projectedDepthDelta) * cameraForwardX;
+            let isNotAbovePlatformHorizontally = abs(projectedDepthDelta) > lengthDistanceThreshold;
+            if (isNotAbovePlatformHorizontally) {
+                correctionDistance = projectedDepthDelta - lengthDistanceThreshold + 1;
             }
         }
+
+        playerX += correctionDistance * cameraForwardX;
+        playerZ += correctionDistance * cameraForwardZ;
     }
 }
 
 function checkSafetyTeleport() {
-    timeSinceFell += 0.02;
     if (playerY < -20) {
-        timeSinceFell = 0;
-        playerY = 0;
-        playerX = 0;
-        playerZ = 0;
-        playerHorizontalVelocity = 0;
-        playerVerticalVelocity = 0;
+        teleportPlayer(0, 0, 0);
     }
+}
+
+function teleportPlayer(x, y, z) {
+    playerX = x;
+    playerY = y;
+    playerZ = z;
+
+    playerHorizontalVelocity = playerVerticalVelocity = 0;
+    sinceTeleportTimer = 0;
 }
 
 // === Drawing
@@ -208,47 +230,60 @@ function checkSafetyTeleport() {
 var cubeDrawQueue = [];
 
 function draw() {
-    ctx.resetTransform();
-    ctx.fillStyle = '#141523';
-    ctx.fillRect(0, 0, SCREEN_SIZE, SCREEN_SIZE);
-
-    ctxApplyCameraProjection();
+    prepareScreen();
     drawPlatforms();
     drawPlayer();
     resolveDrawQueue();
-    
 }
 
-function ctxApplyCameraProjection() {
-    ctx.scale(SCREEN_SIZE, SCREEN_SIZE);
-    ctx.translate(0.5, 0.5);
-    ctx.scale(1 / cameraSize, -1 / cameraSize);
-}
+function prepareScreen() {
+    // set screen projection transform
+    var offset = SCREEN_SIZE / 2;
+    var scale = SCREEN_SIZE / cameraSize;
+    ctx.setTransform(scale, 0, 0, -scale, offset, offset);
 
-function drawPlayer() {
-    let playerAngle = -cameraAngle - sin(shiftTime * 2 * shiftDirection) * 0.4;
-    cubeDrawQueue.push([playerX, playerY + 0.5, playerZ, 1, 1, 1, playerAngle, 0]);
-    let hatOffsetX = - 0.25 * cameraForwardX;
-    let hatOffsetY = 1.25 - min(0, max(-0.25, playerVerticalVelocity));
-    let hatOffsetZ = 0.25 * cameraForwardZ;
-    let hatAngle = cameraAngle * -2;
-    cubeDrawQueue.push([playerX + hatOffsetX, playerY + hatOffsetY, playerZ + hatOffsetZ, 0.5, 0.5, 0.5, hatAngle, 1]);
+    // clear entire screen while keeping the transform
+    ctx.fillStyle = '#141523';
+    ctx.fillRect(-scale, -scale, scale * 2, scale * 2);
 }
 
 function drawPlatforms() {
-    platforms.forEach(platform => cubeDrawQueue.push(platform));
+    cubeDrawQueue.push(...platforms);
+}
+
+function drawPlayer() {
+    // main player cube
+    let playerAngleShiftingTilt = -sin(shiftTimer * 2 * shiftDirection) * 0.4;
+    let playerAngle = cameraAngle + playerAngleShiftingTilt;
+    cubeDrawQueue.push([
+        playerX, playerY, playerZ,
+        1, 1, 1,
+        playerAngle, 0
+    ]);
+    
+    // hat cube
+    let hatFallingOffset = min(0, max(-0.25, playerVerticalVelocity));
+    let hatOffsetX = -0.25 * cameraRightX;
+    let hatOffsetY = 0.75 - hatFallingOffset;
+    let hatOffsetZ = -0.25 * cameraRightZ;
+    let hatAngle = cameraAngle * 2;
+    cubeDrawQueue.push([
+        playerX + hatOffsetX, playerY + hatOffsetY, playerZ + hatOffsetZ,
+        0.5, 0.5, 0.5,
+        hatAngle, 1
+    ]);
 }
 
 function resolveDrawQueue() {
     sortDrawQueue();
-    cubeDrawQueue.forEach(cube => drawCube(cube));
+    cubeDrawQueue.forEach(drawCube);
     cubeDrawQueue = [];
 }
 
 function sortDrawQueue() {
     // compares depth of cubes by doing (b-a).dot(cameraForward), 
     // essentially getting the difference of depth between their origin points
-    cubeDrawQueue.sort((a, b) => (b[0] - a[0]) * cameraForwardZ + (b[2] - a[2]) * cameraForwardX);
+    cubeDrawQueue.sort((a, b) => (b[0] - a[0]) * cameraForwardX + (b[2] - a[2]) * cameraForwardZ);
 }
 
 function drawCube(cube) {
@@ -258,9 +293,9 @@ function drawCube(cube) {
     let relativeY = worldY - cameraY;
     let relativeZ = worldZ - cameraZ;
 
-    let x = relativeX * cameraForwardX - relativeZ * cameraForwardZ;
+    let x = relativeX * cameraRightX + relativeZ * cameraRightZ;
     let y = relativeY;
-    let angle = localAngle + cameraAngle;
+    let angle = localAngle - cameraAngle;
     let color = colors[colorId];
 
     let halfTurnWrappedAngle = ((angle % PI) + PI) % PI;
@@ -269,28 +304,19 @@ function drawCube(cube) {
     let shouldSwitchSides = halfTurnWrappedAngle >= HALF_PI;
     if (shouldSwitchSides) [width, length] = [length, width];
     
-    let halfDiagonalSize = sqrt(width * width + length * length) / 2;
-    let angleCos = cos(quarterTurnWrappedAngle);
-    let angleSin = sin(quarterTurnWrappedAngle);
     let edgeAngleDelta = atan2(width, length);
 
-    let leftEdgeAngleSin = sin((PI + edgeAngleDelta + quarterTurnWrappedAngle));
-    let leftWallEdgeOffset = leftEdgeAngleSin * halfDiagonalSize;
-    let leftWallSize = angleSin * length;
-    let leftWallShading = angleSin * 0.7 + 0.3;
+    const drawWall = (edgeAngle, size, dotProduct) => {
+        let edgeAngleSin = sin(edgeAngle + quarterTurnWrappedAngle);
+        let halfDiagonalSize = sqrt(width * width + length * length) / 2;
+        let edgeWallOffset = edgeAngleSin * halfDiagonalSize;
+        let wallSize = size * dotProduct;
+        let shade = dotProduct * 0.7 + 0.3;
 
-    setWallColor(color, leftWallShading);
-    ctx.fillRect(x + leftWallEdgeOffset, y - height / 2, leftWallSize, height);
+        ctx.fillStyle = `rgb(${color[0] * shade} ${color[1] * shade} ${color[2] * shade})`;
+        ctx.fillRect(x + edgeWallOffset, y - height / 2, wallSize, height);
+    }
 
-    let rightEdgeAngleSin = sin((TWO_PI - edgeAngleDelta + quarterTurnWrappedAngle));
-    let rightWallEdgeOffset = rightEdgeAngleSin * halfDiagonalSize;
-    let rightWallSize = angleCos * width;
-    let rightWallShading = angleCos * 0.7 + 0.3;
-
-    setWallColor(color, rightWallShading);
-    ctx.fillRect(x + rightWallEdgeOffset, y - height / 2, rightWallSize, height);
-}
-
-function setWallColor(color, shade) {
-    ctx.fillStyle = `rgb(${color[0] * shade} ${color[1] * shade} ${color[2] * shade})`;
+    drawWall(PI + edgeAngleDelta, length, sin(quarterTurnWrappedAngle));
+    drawWall(TWO_PI - edgeAngleDelta, width, cos(quarterTurnWrappedAngle));
 }

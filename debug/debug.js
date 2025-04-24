@@ -4,7 +4,14 @@ var sizeContainer = document.querySelector("#size");
 fetch("../script.js").then(response => {
     return response.text();
 }).then(sourceCode => { 
-    const options = { compress: true, mangle: true, toplevel: true };
+    const options = {
+        compress: {
+            passes: 3,
+            inline: true,
+        },
+        mangle: true,
+        toplevel: true,
+    };
     let minified = Terser.minify_sync(sourceCode, options);
     let minifiedCode = minified.code;
 
