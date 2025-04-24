@@ -1,4 +1,4 @@
-const canvas = document.getElementById('canvas');
+const canvas = document.body.children[0];
 const ctx = canvas.getContext('2d');
 const { sin, cos, sqrt, PI, atan2, min, max, abs } = Math;
 const HALF_PI = PI / 2, TWO_PI = PI * 2;

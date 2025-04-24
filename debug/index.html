@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FZ64KB</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:,">
+</head>
+<body>
+    <canvas id="canvas" width="720" height="720"></canvas>
+    <script src="../script.js"></script>
+
+    <!-- Debug (display minified code and its size) -->
+    <div id="debug">
+        <p>Source code size: <span id="size">0</span> bytes</p>
+        <pre><code class="language-js" id="source" rows="10" disabled="true"></code></pre>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/source-map@0.7.3/dist/source-map.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/terser/dist/bundle.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark-reasonable.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="debug.js"></script>
+</body>
+</html>
