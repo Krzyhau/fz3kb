@@ -4,15 +4,20 @@ var sizeContainer = document.querySelector("#size");
 fetch("../script.js").then(response => {
     return response.text();
 }).then(sourceCode => { 
-    var options = { compress: true, mangle: true, toplevel: true };
+    const options = { compress: true, mangle: true, toplevel: true };
     let minified = Terser.minify_sync(sourceCode, options);
     let minifiedCode = minified.code;
 
     sourceCodeContainer.innerHTML = escapeHTML(minifiedCode);
-    sizeContainer.innerHTML = minifiedCode.length;
-
     hljs.highlightElement(sourceCodeContainer);
+    
+    let totalSize = minifiedCode.length + getBoilerplateLength();
+    sizeContainer.innerHTML = `${totalSize} bytes (${minifiedCode.length} script + ${getBoilerplateLength()} boilerplate)`;
 });
+
+function getBoilerplateLength() {
+    return "<body style=\"margin:0\"><canvas width=720 height=720><script></script>".length;
+}
 
 function escapeHTML(str) {
     return str
