@@ -1,4 +1,5 @@
-const ctx = document.body.children[0].getContext('2d');
+// === Common variables and helpers
+
 const { sin, cos, sqrt, PI, atan2, min, max, abs } = Math;
 const HALF_PI = PI / 2, TWO_PI = PI * 2;
 const SCREEN_SIZE = 720;
@@ -116,6 +117,7 @@ function shiftPerspective(direction) {
     shiftTimer = 0
     shiftDirection = direction;
     shiftStart = cameraAngle;
+    playShiftSound(direction);
 }
 
 function shiftingUpdate() {
@@ -140,6 +142,7 @@ function preparePlayerMovement() {
 
 function handleJumping() {
     if (playerGrounded && jumpingInput) {
+        playJumpSound();
         playerVerticalVelocity = 0.2;
     }
 }
@@ -227,6 +230,7 @@ function teleportPlayer(x, y, z) {
 
 // === Drawing
 
+const ctx = document.body.children[0].getContext('2d');
 var cubeDrawQueue = [];
 
 function draw() {
@@ -319,4 +323,29 @@ function drawCube(cube) {
 
     drawWall(PI + edgeAngleDelta, length, sin(quarterTurnWrappedAngle));
     drawWall(TWO_PI - edgeAngleDelta, width, cos(quarterTurnWrappedAngle));
+}
+
+function playJumpSound() {
+    playSound([[0.0, 0.0], [0.1, 0.01], [0.0, 0.4]], [[200, 0], [400, 0.4]], 'sine', 0.4);
+}
+
+function playShiftSound(direction) {
+    playSound([[0.0, 0.0], [0.1, 0.3], [0.0, 0.9]], [[45 - direction * 2, 0], [45 + direction * 2, 1]], 'triangle', 0.9);
+}
+
+function playSound(volumes, frequencies, type, duration) {
+    const audioCtx = new AudioContext();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const currentTime = audioCtx.currentTime;
+
+    osc.type = type;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    volumes.forEach(volume => gain.gain.linearRampToValueAtTime(volume[0], currentTime + volume[1]));
+    frequencies.forEach(freq => osc.frequency.exponentialRampToValueAtTime(freq[0], currentTime + freq[1]));
+
+    osc.start(currentTime);
+    osc.stop(currentTime + duration);
 }
