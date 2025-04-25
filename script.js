@@ -226,6 +226,7 @@ function teleportPlayer(x, y, z) {
 
     playerHorizontalVelocity = playerVerticalVelocity = 0;
     sinceTeleportTimer = 0;
+    playKillSound();
 }
 
 // === Drawing
@@ -325,27 +326,42 @@ function drawCube(cube) {
     drawWall(TWO_PI - edgeAngleDelta, width, cos(quarterTurnWrappedAngle));
 }
 
+// === Audio
+
+const SAMPLE_RATE = 44100;
+
 function playJumpSound() {
-    playSound([[0.0, 0.0], [0.1, 0.01], [0.0, 0.4]], [[200, 0], [400, 0.4]], 'sine', 0.4);
+    playSound(0.4, t => sin(
+        (880 + 600 * t) * t // frequency
+    ) * min(t, 0.1 - t / 4, 0.1)); // volume
 }
 
-function playShiftSound(direction) {
-    playSound([[0.0, 0.0], [0.1, 0.3], [0.0, 0.9]], [[45 - direction * 2, 0], [45 + direction * 2, 1]], 'triangle', 0.9);
+function playShiftSound(dir) {
+    playSound(0.9, t => {
+        return sin(
+            ((120 + dir * 15) + (sin(250 * t) + 1)) * 9 * t // frequency
+        ) * min(t, (0.9 - t) / 5, 0.1); // volume
+    });
 }
 
-function playSound(volumes, frequencies, type, duration) {
-    const audioCtx = new AudioContext();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    const currentTime = audioCtx.currentTime;
+function playKillSound() {
+    playSound(0.2, t => sin(
+        (3880 - 10000 * t) * t // frequency
+    ) * min(t, 0.2 - t, 0.2)); // volume
+}
 
-    osc.type = type;
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    volumes.forEach(volume => gain.gain.linearRampToValueAtTime(volume[0], currentTime + volume[1]));
-    frequencies.forEach(freq => osc.frequency.exponentialRampToValueAtTime(freq[0], currentTime + freq[1]));
+function playSound(duration, func) {
+    let audioCtx = new AudioContext();
+    let samples = SAMPLE_RATE * duration;
+    let buffer = audioCtx.createBuffer(1, samples, SAMPLE_RATE);
+    let data = buffer.getChannelData(0);
 
-    osc.start(currentTime);
-    osc.stop(currentTime + duration);
+    for (let i = 0; i < samples; i++) {
+        data[i] = func(i / SAMPLE_RATE);
+    }
+
+    let source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioCtx.destination);
+    source.start();
 }
