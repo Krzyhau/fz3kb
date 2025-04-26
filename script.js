@@ -117,7 +117,7 @@ function shiftPerspective(direction) {
     shiftTimer = 0
     shiftDirection = direction;
     shiftStart = cameraAngle;
-    playShiftSound(direction);
+    playShiftSound();
 }
 
 function shiftingUpdate() {
@@ -336,12 +336,11 @@ function playJumpSound() {
     ) * min(t, 0.1 - t / 4, 0.1)); // volume
 }
 
-function playShiftSound(dir) {
-    playSound(0.9, t => {
-        return sin(
-            ((120 + dir * 15) + (sin(250 * t) + 1)) * 9 * t // frequency
-        ) * min(t, (0.9 - t) / 5, 0.1); // volume
-    });
+function playShiftSound() {
+    playSound(0.9, t => sin(
+            ((120 + shiftDirection * 15) + (sin(250 * t) + 1)) * 9 * t // frequency
+        ) * min(t, (0.9 - t) / 5, 0.1) // volume
+    );
 }
 
 function playKillSound() {
