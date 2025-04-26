@@ -1,6 +1,6 @@
 // === Common variables and helpers
 
-const { sin, cos, sqrt, PI, atan2, min, max, abs, floor, random} = Math;
+const { sin, cos, sqrt, PI, atan2, min, max, abs, floor} = Math;
 const HALF_PI = PI / 2, TWO_PI = PI * 2;
 const SCREEN_SIZE = 720;
 const EPSILON = 0.0001;
@@ -62,7 +62,7 @@ const colors = [
 
 // saving space on repeating platform pattern
 var topPyramidSlab = (step) => [10, 25 + step, -10, 15 - step * 2, 1, 15 - step * 2, COLOR_ID_YELLOW_PLATFORM];
-// defined as [x, y, z, width, height, length, colorId, angle (optional)]
+// defined as [x, y, z, width, height, colorId, angle (optional)]
 const platforms = [
     [0, -2, 2, 5, 1, 5, COLOR_ID_GREEN_PLATFORM],
     [0, 0, 2, 3, 3, 3, COLOR_ID_YELLOW_PLATFORM],
@@ -70,9 +70,8 @@ const platforms = [
     [5, 4, 5, 3, 3, 3, COLOR_ID_RED_PLATFORM],
     [1, 7, -5, 3, 3, 3, COLOR_ID_RED_PLATFORM],
     [1, 10, -5, 1, 3, 1, COLOR_ID_CYAN_PLATFORM],
-    [1, 14, -5, 5, 1, 3, COLOR_ID_GREEN_PLATFORM],
-    [7.5, 14, -5, 6, 1, 3, COLOR_ID_GREEN_PLATFORM],
-    [10, 19.5, -10, 3, 7, 5, COLOR_ID_RED_PLATFORM],
+    [1, 14, -5, 3, 1, 3, COLOR_ID_GREEN_PLATFORM],
+    [10, 19.5, -10, 5, 7, 5, COLOR_ID_RED_PLATFORM],
     [10, 17, -7, 1, 1, 1, COLOR_ID_CYAN_PLATFORM],
     [10, 20, -13, 1, 1, 1, COLOR_ID_CYAN_PLATFORM],
 
@@ -156,11 +155,7 @@ function gameLoop() {
 
 function updateTimers() {
     sinceTeleportTimer += 0.01;
-    blinkTimer += 0.03;
-
-    if (blinkTimer > 70) {
-        blinkTimer = 0;
-    }
+    blinkTimer = (blinkTimer + 0.03) % 70;
 }
 
 function updateMonolith() {
@@ -202,9 +197,10 @@ function updateCamera() {
 
     // shaking during puzzle solved
     if (puzzleSolved && monolithY < 34.5) {
-        cameraX += (random() - 0.5) * 0.1;
-        cameraY += (random() - 0.5) * 0.1;
-        cameraZ += (random() - 0.5) * 0.1;
+        // pseudo randomness
+        cameraX += (monolithY * 1e4) % 0.2 - 0.1;
+        cameraY += (monolithY * 1e5) % 0.2 - 0.1;
+        cameraZ += (monolithY * 1e6) % 0.2 - 0.1;
     }
 }
 
