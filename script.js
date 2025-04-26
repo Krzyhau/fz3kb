@@ -1,6 +1,6 @@
 // === Common variables and helpers
 
-const { sin, cos, sqrt, PI, atan2, min, max, abs, floor} = Math;
+const { sin, cos, sqrt, PI, atan2, min, max, abs, floor, random} = Math;
 const HALF_PI = PI / 2, TWO_PI = PI * 2;
 const SCREEN_SIZE = 720;
 const EPSILON = 0.0001;
@@ -11,6 +11,7 @@ var goingLeftInputPart = 0;
 var goingRightInputPart = 0;
 var jumpingInput = false;
 var downInput = false;
+var textBuffer = '';
 
 const JUMP_KEY = ' ';
 const GO_DOWN_KEY = 'ArrowDown';
@@ -19,7 +20,11 @@ const RIGHT_KEY = 'ArrowRight';
 const SHIFT_LEFT_KEY = 'a';
 const SHIFT_RIGHT_KEY = 'd';
 
-document.onkeydown = e => onInputChange(e.key, true);
+document.onkeydown = e => {
+    if(e.repeat) return;
+    onInputChange(e.key, true);
+    textBuffer += e.key;
+}
 document.onkeyup = e => onInputChange(e.key, false);
 function onInputChange(key, pressed) {
     if (key == JUMP_KEY) jumpingInput = pressed;
@@ -36,12 +41,13 @@ function onInputChange(key, pressed) {
 
 // defined as [r, g, b]
 
-const COLOR_ID_PLAYER_CUBE = 0;
-const COLOR_ID_PLAYER_HAT = 1;
+const COLOR_ID_PURE_WHITE = 0;
+const COLOR_ID_PURE_RED = 1;
 const COLOR_ID_YELLOW_PLATFORM = 2;
 const COLOR_ID_RED_PLATFORM = 3;
 const COLOR_ID_CYAN_PLATFORM = 4;
 const COLOR_ID_GREEN_PLATFORM = 5;
+const COLOR_ID_MONOLITH = 6;
 
 const colors = [
     [255, 255, 255], // 0 - player's cube
@@ -50,6 +56,7 @@ const colors = [
     [238, 75, 43], // 3 - red platform
     [110, 220, 230], // 4 - cyan platform
     [117, 185, 52], // 5 - green platform
+    [5, 8, 20] // 6 - monolith
 ]
 
 
@@ -77,6 +84,7 @@ const platforms = [
     topPyramidSlab(5),
 ]
 
+const PUZZLE_CODE = 'monolith';
 
 
 // === Game logic
@@ -118,11 +126,21 @@ var shiftStart = 0;
 var shiftDirection = 0;
 var shiftTimer = 0;
 
+var codeInput = "";
+var monolithX = 10;
+var monolithY = 27;
+var monolithZ = -10;
+var monolithAngle = 0;
+var puzzleSolved = false;
+var blinkTimer = 0;
+
 var sinceTeleportTimer = 0;
 
 setInterval(gameLoop, 15);
 function gameLoop() {
     updateTimers();
+    updatePuzzle();
+    updateMonolith();
     updateCamera();
 
     if (shifting) {
@@ -138,6 +156,33 @@ function gameLoop() {
 
 function updateTimers() {
     sinceTeleportTimer += 0.01;
+    blinkTimer += 0.03;
+
+    if (blinkTimer > 70) {
+        blinkTimer = 0;
+    }
+}
+
+function updateMonolith() {
+    monolithAngle = (monolithAngle + 0.01) % TWO_PI;
+    if (puzzleSolved) {
+        monolithY += (35 - monolithY) * 0.01;
+    }
+}
+
+function updatePuzzle() {
+    if (playerY < 25 || puzzleSolved) {
+        textBuffer = '';
+        return;
+    }
+
+    codeInput += textBuffer;
+    textBuffer = '';
+    codeInput = codeInput.slice(-8);
+    if (codeInput == PUZZLE_CODE) {
+        playWinSound();
+        puzzleSolved = true;
+    }
 }
 
 function updateCamera() {
@@ -154,6 +199,13 @@ function updateCamera() {
     var targetCameraY = playerY + 0.2 * cameraSize;
     // easing only right after falling for a nice transition
     cameraY += (targetCameraY - cameraY) * min(1, sinceTeleportTimer);
+
+    // shaking during puzzle solved
+    if (puzzleSolved && monolithY < 34.5) {
+        cameraX += (random() - 0.5) * 0.1;
+        cameraY += (random() - 0.5) * 0.1;
+        cameraZ += (random() - 0.5) * 0.1;
+    }
 }
 
 function shiftPerspective(direction) {
@@ -323,6 +375,7 @@ function draw() {
     prepareScreen();
     drawPlatforms();
     drawPlayer();
+    drawMonolithPuzzle();
     resolveDrawQueue();
 }
 
@@ -348,7 +401,7 @@ function drawPlayer() {
     cubeDrawQueue.push([
         playerX, playerY, playerZ,
         1, 1, 1,
-        COLOR_ID_PLAYER_CUBE, playerAngle
+        COLOR_ID_PURE_WHITE, playerAngle
     ]);
     
     // hat cube
@@ -360,7 +413,26 @@ function drawPlayer() {
     cubeDrawQueue.push([
         playerX + hatOffsetX, playerY + hatOffsetY, playerZ + hatOffsetZ,
         0.5, 0.5, 0.5,
-        COLOR_ID_PLAYER_HAT, hatAngle
+        COLOR_ID_PURE_RED, hatAngle
+    ]);
+}
+
+function drawMonolithPuzzle() {
+    const getBit = (str, n) => (str.charCodeAt(n >> 3) >> (7 - (n & 7))) & 1;
+
+    if (blinkTimer % 1 < 0.5 && blinkTimer < 64 && !puzzleSolved) {
+        drawCube([
+            monolithX, 34 + getBit(PUZZLE_CODE, blinkTimer), monolithZ,
+            0.1, 0.1, 0.1,
+            COLOR_ID_PURE_RED, 0
+        ]);
+    }
+
+    // skipping queue for monolith to be drawn behind everything else
+    drawCube([
+        monolithX, monolithY, monolithZ,
+        2, 4, 2,
+        COLOR_ID_MONOLITH, monolithAngle
     ]);
 }
 
