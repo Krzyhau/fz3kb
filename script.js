@@ -45,7 +45,7 @@ const colors = [
 const platforms = [
     [0, -2, 0, 15, 1, 5, 0, 2],
     [5, -1, 0, 1, 2, 3, 0, 3],
-    [10, -2, 0, 3, 12, 3, 0, 4],
+    [10, -2, 0, 3, 10, 3, 0, 4],
 ]
 
 // === Game logic
@@ -206,38 +206,27 @@ function handlePlatformCollision(platform) {
     let screenDiffY = worldDiffY;
     let screenDiffZ = worldDiffX * cameraForwardX + worldDiffZ * cameraForwardZ;
 
-    let screenDiffXAbs = abs(screenDiffX);
-    let screenDiffYAbs = abs(screenDiffY);
-    let screenDiffZAbs = abs(screenDiffZ);
+    let overlapsX = abs(screenDiffX) < screenCollisionThresholdX;
+    let overlapsY = abs(screenDiffY) < screenCollisionThresholdY;
+    let overlapsZ = abs(screenDiffZ) < screenCollisionThresholdZ;
 
-    let screenAfterMoveDiffX = screenDiffX - playerHorizontalVelocity;
-    let screenAfterMoveDiffY = screenDiffY - playerVerticalVelocity;
-    
-    let screenAfterMoveDiffXAbs = abs(screenAfterMoveDiffX);
-    let screenAfterMoveDiffYAbs = abs(screenAfterMoveDiffY);
-
-    let overlapsX = screenDiffXAbs < screenCollisionThresholdX;
-    let overlapsY = screenDiffYAbs < screenCollisionThresholdY;
-    let overlapsZ = screenDiffZAbs < screenCollisionThresholdZ;
-
-    let overlapsAfterMoveX = screenAfterMoveDiffXAbs <= screenCollisionThresholdX;
-    let overlapsAfterMoveY = screenAfterMoveDiffYAbs <= screenCollisionThresholdY;
+    let overlapsOnScreenAfterMove =
+        abs(screenDiffX - playerHorizontalVelocity) <= screenCollisionThresholdX &&
+        abs(screenDiffY - playerVerticalVelocity) <= screenCollisionThresholdY;
 
     let frontWallDiff = screenDiffZ - screenCollisionThresholdZ;
     let backWallDiff = screenDiffZ + screenCollisionThresholdZ;
 
-    let candidateForWallSnap = !(overlapsX && overlapsY) && overlapsAfterMoveX && overlapsAfterMoveY;
-    let candidateForGround = overlapsAfterMoveX && !overlapsY && overlapsAfterMoveY && playerVerticalVelocity < 0;
-    let candidateForFreeSpaceDefine = overlapsX && overlapsY && !overlapsZ;
-
-    if (candidateForFreeSpaceDefine) {
+    if (overlapsX && overlapsY && !overlapsZ) {
+        // candidate for defining free space
         if (screenDiffZ < 0) {
             nearestFreeSpaceDiff = max(nearestFreeSpaceDiff, backWallDiff - EPSILON);
         } else {
             farthestFreeSpaceDiff = min(farthestFreeSpaceDiff, frontWallDiff + EPSILON);
         }
     }
-    else if (candidateForGround) {
+    else if (!overlapsY && overlapsOnScreenAfterMove && playerVerticalVelocity < 0) {
+        // candidate for ground landing
         let nearestDepthOnGroundDiff =
             overlapsZ ? 0 : screenDiffZ > 0
             ? max(0, screenDiffZ - screenCollisionThresholdZ + 1)
@@ -249,36 +238,25 @@ function handlePlatformCollision(platform) {
             resolveGroundHeightDiff = screenDiffY + screenCollisionThresholdY + EPSILON;
         }
     }
-    else if (candidateForWallSnap) {
-        if (frontWallDiff < resolveForwardDiff) {
-            resolveForwardDiff = frontWallDiff - EPSILON;
-        }
-        if (backWallDiff > resolveBackwardDiff) {
-            resolveBackwardDiff = backWallDiff + EPSILON;
-        }
+    else if (!(overlapsX && overlapsY) && overlapsOnScreenAfterMove) {
+        // candidate for wall snapping
+        resolveForwardDiff = min(resolveForwardDiff, frontWallDiff - EPSILON);
+        resolveBackwardDiff = max(resolveBackwardDiff, backWallDiff + EPSILON);
     }
 }
 
 function resolveCollisions() {
-    let resolveDiff = 0;
-
     if (resolveGroundDiff > nearestFreeSpaceDiff && resolveGroundDiff < farthestFreeSpaceDiff) {
-        resolveDiff = resolveGroundDiff;
+        if (resolveGroundDiff != 0) resolveForwardDiff = resolveGroundDiff;
         playerGrounded = true;
         playerY += resolveGroundHeightDiff;
         playerVerticalVelocity = 0;
     }
 
-    if (resolveDiff == 0) {
-        if (resolveForwardDiff > nearestFreeSpaceDiff && resolveForwardDiff < farthestFreeSpaceDiff) {
-            resolveDiff = resolveForwardDiff;
-        }
-        else if (resolveBackwardDiff > nearestFreeSpaceDiff && resolveBackwardDiff < farthestFreeSpaceDiff) {
-            resolveDiff = resolveBackwardDiff;
-        }
-    }
+    let canResolveForward = resolveForwardDiff > nearestFreeSpaceDiff && resolveForwardDiff < farthestFreeSpaceDiff;
+    let canResolveBackward = resolveBackwardDiff > nearestFreeSpaceDiff && resolveBackwardDiff < farthestFreeSpaceDiff;
+    let resolveDiff = canResolveForward ? resolveForwardDiff : canResolveBackward ? resolveBackwardDiff : 0;
     
-
     playerX += resolveDiff * cameraForwardX;
     playerZ += resolveDiff * cameraForwardZ;
 }
