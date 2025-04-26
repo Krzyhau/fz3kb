@@ -332,21 +332,27 @@ const SAMPLE_RATE = 44100;
 
 function playJumpSound() {
     playSound(0.4, t => sin(
-        (880 + 600 * t) * t // frequency
-    ) * min(t, 0.1 - t / 4, 0.1)); // volume
+        (880 + 600 * t) * t
+    ) * min(t, 0.1 - t / 4, 0.1));
 }
 
 function playShiftSound() {
     playSound(0.9, t => sin(
-            ((120 + shiftDirection * 15) + (sin(250 * t) + 1)) * 9 * t // frequency
-        ) * min(t, (0.9 - t) / 5, 0.1) // volume
+            ((120 + shiftDirection * 15) + (sin(250 * t) + 1)) * 9 * t
+        ) * min(t, (0.9 - t) / 5, 0.1)
     );
 }
 
 function playKillSound() {
     playSound(0.2, t => sin(
-        (3880 - 10000 * t) * t // frequency
-    ) * min(t, 0.2 - t, 0.2)); // volume
+        (3880 - 10000 * t) * t
+    ) * min(t, 0.2 - t, 0.2));
+}
+
+function playWinSound() {
+    playSound(4.2, t => sin(
+        (5000 - 1000 * (floor(t * 10 * sin(t * 0.51)) % 4))
+        * t) * sin(t * 1777) * cos(t * 6000) * 0.1);
 }
 
 function playSound(duration, func) {
