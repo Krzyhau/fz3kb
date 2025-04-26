@@ -1,8 +1,9 @@
 // === Common variables and helpers
 
-const { sin, cos, sqrt, PI, atan2, min, max, abs } = Math;
+const { sin, cos, sqrt, PI, atan2, min, max, abs} = Math;
 const HALF_PI = PI / 2, TWO_PI = PI * 2;
 const SCREEN_SIZE = 720;
+const EPSILON = 0.0001;
 
 // === Inputs
 
@@ -42,9 +43,9 @@ const colors = [
 
 // defined as [x, y, z, width, height, length, angle, colorId]
 const platforms = [
-    [0, -2, 0, 3, 1, 3, 0, 2],
-    [5, -1, 5, 1, 2, 3, 0, 3],
-    [10, -2, 10, 3, 8, 3, 0, 4],
+    [0, -2, 0, 15, 1, 5, 0, 2],
+    [5, -1, 0, 1, 2, 3, 0, 3],
+    [10, -2, 0, 3, 12, 3, 0, 4],
 ]
 
 // === Game logic
@@ -52,9 +53,19 @@ const platforms = [
 var playerX = 0;
 var playerY = 0;
 var playerZ = 0;
-var playerHorizontalVelocity = 0;
+var playerHorizontalVelocity = 0; // player's velocity is always applied screen-space
 var playerVerticalVelocity = 0;
 var playerGrounded = false;
+
+// max distances player can teleport along screen depth without hitting a wall
+var nearestFreeSpaceDiff;
+var farthestFreeSpaceDiff;
+
+// proposed teleportation distances along screen depth
+var resolveForwardDiff;
+var resolveBackwardDiff;
+var resolveGroundDiff;
+var resolveGroundHeightDiff;
 
 var cameraX = 0;
 var cameraY = 0;
@@ -70,8 +81,8 @@ var cameraForwardZ;
 var shifting = false;
 var shiftStart = 0;
 var shiftDirection = 0;
-
 var shiftTimer = 0;
+
 var sinceTeleportTimer = 0;
 
 setInterval(gameLoop, 15);
@@ -153,64 +164,123 @@ function handleGravity() {
 }
 
 function applyPlayerMovement() {
-    playerX += playerHorizontalVelocity * cameraRightX;
-    playerZ += playerHorizontalVelocity * cameraRightZ;
-
-    // handling collisions between x and y axis movement 
-    // to improve jumping into corners
     handleCollisions();
 
+    playerX += playerHorizontalVelocity * cameraRightX;
     playerY += playerVerticalVelocity;
+    playerZ += playerHorizontalVelocity * cameraRightZ;
 }
 
 function handleCollisions() {
-    playerGrounded = false;
+    prepareCollisionVariables();
     platforms.forEach(handlePlatformCollision);
+    resolveCollisions();
+}
+
+function prepareCollisionVariables() {
+    playerGrounded = false;
+    nearestFreeSpaceDiff = -Infinity;
+    farthestFreeSpaceDiff = Infinity;
+    resolveForwardDiff = 0;
+    resolveBackwardDiff = 0;
+    resolveGroundDiff = NaN;
+    resolveGroundHeightDiff = NaN;
 }
 
 function handlePlatformCollision(platform) {
     let [platformX, platformY, platformZ, width, height, length] = platform;
     
-    let projectedWidth = abs(width * cameraRightX) + abs(length * cameraRightZ);
-    let projectedLength = abs(length * cameraRightX) + abs(width * cameraRightZ);
+    let screenWidth = abs(width * cameraRightX) + abs(length * cameraRightZ);
+    let screenHeight = height;
+    let screenDepth = abs(length * cameraRightX) + abs(width * cameraRightZ);
 
-    let widthDistanceThreshold = projectedWidth / 2 + 0.5;
-    let heightDistanceThreshold = height / 2 + 0.5;
-    let lengthDistanceThreshold = projectedLength / 2 + 0.5;
+    let screenCollisionThresholdX = screenWidth / 2 + 0.5;
+    let screenCollisionThresholdY = screenHeight / 2 + 0.5;
+    let screenCollisionThresholdZ = screenDepth / 2 + 0.5;
 
-    let projectedXDelta = (platformX - playerX) * cameraRightX + (platformZ - playerZ) * cameraRightZ;
-    let projectedXDeltaAbs = abs(projectedXDelta);
+    let worldDiffX = platformX - playerX;
+    let worldDiffY = platformY - playerY;
+    let worldDiffZ = platformZ - playerZ;
+
+    let screenDiffX = worldDiffX * cameraRightX + worldDiffZ * cameraRightZ;
+    let screenDiffY = worldDiffY;
+    let screenDiffZ = worldDiffX * cameraForwardX + worldDiffZ * cameraForwardZ;
+
+    let screenDiffXAbs = abs(screenDiffX);
+    let screenDiffYAbs = abs(screenDiffY);
+    let screenDiffZAbs = abs(screenDiffZ);
+
+    let screenAfterMoveDiffX = screenDiffX - playerHorizontalVelocity;
+    let screenAfterMoveDiffY = screenDiffY - playerVerticalVelocity;
     
-    if (projectedXDeltaAbs < widthDistanceThreshold) {
-        let projectedYDeltaAbs = abs(playerY - platformY);
-        let projectedYAfterMoveDeltaAbs = abs(playerY + playerVerticalVelocity - platformY);
-        let projectedDepthDelta = (platformX - playerX) * cameraForwardX + (platformZ - playerZ) * cameraForwardZ;
+    let screenAfterMoveDiffXAbs = abs(screenAfterMoveDiffX);
+    let screenAfterMoveDiffYAbs = abs(screenAfterMoveDiffY);
 
-        let correctionDistance = 0;
-        
-        let overlappingPlatform = projectedYDeltaAbs < heightDistanceThreshold;
-        let willOverlapPlatformAfterMove = projectedYAfterMoveDeltaAbs < heightDistanceThreshold;
-        
-        if (overlappingPlatform) {
-            let isBehindPlatformFrontFace = projectedDepthDelta < lengthDistanceThreshold;
-            if (isBehindPlatformFrontFace) {
-                correctionDistance = projectedDepthDelta - lengthDistanceThreshold;
-            }
+    let overlapsX = screenDiffXAbs < screenCollisionThresholdX;
+    let overlapsY = screenDiffYAbs < screenCollisionThresholdY;
+    let overlapsZ = screenDiffZAbs < screenCollisionThresholdZ;
+
+    let overlapsAfterMoveX = screenAfterMoveDiffXAbs <= screenCollisionThresholdX;
+    let overlapsAfterMoveY = screenAfterMoveDiffYAbs <= screenCollisionThresholdY;
+
+    let frontWallDiff = screenDiffZ - screenCollisionThresholdZ;
+    let backWallDiff = screenDiffZ + screenCollisionThresholdZ;
+
+    let candidateForWallSnap = !(overlapsX && overlapsY) && overlapsAfterMoveX && overlapsAfterMoveY;
+    let candidateForGround = overlapsAfterMoveX && !overlapsY && overlapsAfterMoveY && playerVerticalVelocity < 0;
+    let candidateForFreeSpaceDefine = overlapsX && overlapsY && !overlapsZ;
+
+    if (candidateForFreeSpaceDefine) {
+        if (screenDiffZ < 0) {
+            nearestFreeSpaceDiff = max(nearestFreeSpaceDiff, backWallDiff - EPSILON);
+        } else {
+            farthestFreeSpaceDiff = min(farthestFreeSpaceDiff, frontWallDiff + EPSILON);
         }
-        else if (willOverlapPlatformAfterMove) {
-            playerY = platformY + heightDistanceThreshold
-            playerVerticalVelocity = 0;
-            playerGrounded = true;
-
-            let isNotAbovePlatformHorizontally = abs(projectedDepthDelta) > lengthDistanceThreshold;
-            if (isNotAbovePlatformHorizontally) {
-                correctionDistance = projectedDepthDelta - lengthDistanceThreshold + 1;
-            }
-        }
-
-        playerX += correctionDistance * cameraForwardX;
-        playerZ += correctionDistance * cameraForwardZ;
     }
+    else if (candidateForGround) {
+        let nearestDepthOnGroundDiff =
+            overlapsZ ? 0 : screenDiffZ > 0
+            ? max(0, screenDiffZ - screenCollisionThresholdZ + 1)
+            : min(0, screenDiffZ + screenCollisionThresholdZ - 1);
+        
+        let hasCloserGroundAlready = abs(resolveGroundDiff) < abs(nearestDepthOnGroundDiff);
+        if (!hasCloserGroundAlready) {
+            resolveGroundDiff = nearestDepthOnGroundDiff;
+            resolveGroundHeightDiff = screenDiffY + screenCollisionThresholdY + EPSILON;
+        }
+    }
+    else if (candidateForWallSnap) {
+        if (frontWallDiff < resolveForwardDiff) {
+            resolveForwardDiff = frontWallDiff - EPSILON;
+        }
+        if (backWallDiff > resolveBackwardDiff) {
+            resolveBackwardDiff = backWallDiff + EPSILON;
+        }
+    }
+}
+
+function resolveCollisions() {
+    let resolveDiff = 0;
+
+    if (resolveGroundDiff > nearestFreeSpaceDiff && resolveGroundDiff < farthestFreeSpaceDiff) {
+        resolveDiff = resolveGroundDiff;
+        playerGrounded = true;
+        playerY += resolveGroundHeightDiff;
+        playerVerticalVelocity = 0;
+    }
+
+    if (resolveDiff == 0) {
+        if (resolveForwardDiff > nearestFreeSpaceDiff && resolveForwardDiff < farthestFreeSpaceDiff) {
+            resolveDiff = resolveForwardDiff;
+        }
+        else if (resolveBackwardDiff > nearestFreeSpaceDiff && resolveBackwardDiff < farthestFreeSpaceDiff) {
+            resolveDiff = resolveBackwardDiff;
+        }
+    }
+    
+
+    playerX += resolveDiff * cameraForwardX;
+    playerZ += resolveDiff * cameraForwardZ;
 }
 
 function checkSafetyTeleport() {
