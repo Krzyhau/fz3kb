@@ -35,6 +35,14 @@ function onInputChange(key, pressed) {
 // === Game data
 
 // defined as [r, g, b]
+
+const COLOR_ID_PLAYER_CUBE = 0;
+const COLOR_ID_PLAYER_HAT = 1;
+const COLOR_ID_YELLOW_PLATFORM = 2;
+const COLOR_ID_RED_PLATFORM = 3;
+const COLOR_ID_CYAN_PLATFORM = 4;
+const COLOR_ID_GREEN_PLATFORM = 5;
+
 const colors = [
     [255, 255, 255], // 0 - player's cube
     [255,0,0], // 1 - player's red hat
@@ -44,28 +52,32 @@ const colors = [
     [117, 185, 52], // 5 - green platform
 ]
 
-// defined as [x, y, z, width, height, length, angle, colorId]
+
+// saving space on repeating platform pattern
+var topPyramidSlab = (step) => [10, 25 + step, -10, 15 - step * 2, 1, 15 - step * 2, COLOR_ID_YELLOW_PLATFORM];
+// defined as [x, y, z, width, height, length, colorId, angle (optional)]
 const platforms = [
-    [0, -2, 2, 5, 1, 5, 0, 5],
-    [0, 0, 2, 3, 3, 3, 0, 2],
-    [-5, 2, -2, 3, 3, 3, 0, 3],
-    [5, 4, 5, 3, 3, 3, 0, 3],
-    [1, 7, -5, 3, 3, 3, 0, 3],
-    [1, 10, -5, 1, 3, 1, 0, 4],
-    [1, 14, -5, 5, 1, 3, 0, 5],
-    [7.5, 14, -5, 6, 1, 3, 0, 5],
-    [10, 19.5, -10, 3, 7, 5, 0, 3],
-    [10, 17, -7, 1, 1, 1, 0, 4],
-    [10, 20, -13, 1, 1, 1, 0, 4],
+    [0, -2, 2, 5, 1, 5, COLOR_ID_GREEN_PLATFORM],
+    [0, 0, 2, 3, 3, 3, COLOR_ID_YELLOW_PLATFORM],
+    [-5, 2, -2, 3, 3, 3, COLOR_ID_RED_PLATFORM],
+    [5, 4, 5, 3, 3, 3, COLOR_ID_RED_PLATFORM],
+    [1, 7, -5, 3, 3, 3, COLOR_ID_RED_PLATFORM],
+    [1, 10, -5, 1, 3, 1, COLOR_ID_CYAN_PLATFORM],
+    [1, 14, -5, 5, 1, 3, COLOR_ID_GREEN_PLATFORM],
+    [7.5, 14, -5, 6, 1, 3, COLOR_ID_GREEN_PLATFORM],
+    [10, 19.5, -10, 3, 7, 5, COLOR_ID_RED_PLATFORM],
+    [10, 17, -7, 1, 1, 1, COLOR_ID_CYAN_PLATFORM],
+    [10, 20, -13, 1, 1, 1, COLOR_ID_CYAN_PLATFORM],
 
-    [10, 25, -10, 15, 1, 15, 0, 2],
-    [10, 26, -10, 13, 1, 13, 0, 2],
-    [10, 27, -10, 11, 1, 11, 0, 2],
-    [10, 28, -10, 9, 1, 9, 0, 2],
-    [10, 29, -10, 7, 1, 7, 0, 2],
-    [10, 30, -10, 5, 1, 5, 0, 2],
-
+    topPyramidSlab(0),
+    topPyramidSlab(1),
+    topPyramidSlab(2),
+    topPyramidSlab(3),
+    topPyramidSlab(4),
+    topPyramidSlab(5),
 ]
+
+
 
 // === Game logic
 
@@ -336,7 +348,7 @@ function drawPlayer() {
     cubeDrawQueue.push([
         playerX, playerY, playerZ,
         1, 1, 1,
-        playerAngle, 0
+        COLOR_ID_PLAYER_CUBE, playerAngle
     ]);
     
     // hat cube
@@ -348,7 +360,7 @@ function drawPlayer() {
     cubeDrawQueue.push([
         playerX + hatOffsetX, playerY + hatOffsetY, playerZ + hatOffsetZ,
         0.5, 0.5, 0.5,
-        hatAngle, 1
+        COLOR_ID_PLAYER_HAT, hatAngle
     ]);
 }
 
@@ -365,7 +377,7 @@ function sortDrawQueue() {
 }
 
 function drawCube(cube) {
-    let [worldX, worldY, worldZ, width, height, length, localAngle, colorId] = cube;
+    let [worldX, worldY, worldZ, width, height, length, colorId, localAngle] = cube;
 
     let relativeX = worldX - cameraX;
     let relativeY = worldY - cameraY;
@@ -373,7 +385,7 @@ function drawCube(cube) {
 
     let x = relativeX * cameraRightX + relativeZ * cameraRightZ;
     let y = relativeY;
-    let angle = localAngle - cameraAngle;
+    let angle = localAngle ?? 0 - cameraAngle;
     let color = colors[colorId];
 
     let halfTurnWrappedAngle = ((angle % PI) + PI) % PI;
