@@ -8,8 +8,18 @@ fetch("../script.js").then(response => {
         compress: {
             passes: 3,
             inline: true,
+            toplevel: true,
+            ecma: 2020,
+            unsafe: true,
+            unsafe_arrows: true,
+            unsafe_math: true,
+            unsafe_Function: true,
+            unsafe_comps: true,
         },
-        mangle: true,
+        mangle: {
+            toplevel: true,
+            
+        },
         toplevel: true,
     };
     let minified = Terser.minify_sync(sourceCode, options);

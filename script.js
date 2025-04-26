@@ -1,9 +1,9 @@
 // === Common variables and helpers
 
-const { sin, cos, sqrt, PI, atan2, min, max, abs, floor} = Math;
+const { sin, cos, sqrt, PI, min, max, abs, floor } = Math;
 const HALF_PI = PI / 2, TWO_PI = PI * 2;
 const SCREEN_SIZE = 720;
-const EPSILON = 0.0001;
+const EPSILON = 0.001;
 
 // === Inputs
 
@@ -21,7 +21,7 @@ const SHIFT_LEFT_KEY = 'a';
 const SHIFT_RIGHT_KEY = 'd';
 
 document.onkeydown = e => {
-    if(e.repeat) return;
+    if (e.repeat) return;
     onInputChange(e.key, true);
     textBuffer += e.key;
 }
@@ -51,7 +51,7 @@ const COLOR_ID_MONOLITH = 6;
 
 const colors = [
     [255, 255, 255], // 0 - player's cube
-    [255,0,0], // 1 - player's red hat
+    [255, 0, 0], // 1 - player's red hat
     [240, 180, 60], // 2 - yellow platform
     [238, 75, 43], // 3 - red platform
     [110, 220, 230], // 4 - cyan platform
@@ -61,19 +61,20 @@ const colors = [
 
 
 // saving space on repeating platform pattern
-var topPyramidSlab = (step) => [10, 25 + step, -10, 15 - step * 2, 1, 15 - step * 2, COLOR_ID_YELLOW_PLATFORM];
+var topPyramidSlab = (step) => [10, 25 + step, -10, 15 - step * 2, 1, COLOR_ID_YELLOW_PLATFORM];
 // defined as [x, y, z, width, height, colorId, angle (optional)]
+// platforms have the same width and length to skip some calculations
 const platforms = [
-    [0, -2, 2, 5, 1, 5, COLOR_ID_GREEN_PLATFORM],
-    [0, 0, 2, 3, 3, 3, COLOR_ID_YELLOW_PLATFORM],
-    [-5, 2, -2, 3, 3, 3, COLOR_ID_RED_PLATFORM],
-    [5, 4, 5, 3, 3, 3, COLOR_ID_RED_PLATFORM],
-    [1, 7, -5, 3, 3, 3, COLOR_ID_RED_PLATFORM],
-    [1, 10, -5, 1, 3, 1, COLOR_ID_CYAN_PLATFORM],
-    [1, 14, -5, 3, 1, 3, COLOR_ID_GREEN_PLATFORM],
-    [10, 19.5, -10, 5, 7, 5, COLOR_ID_RED_PLATFORM],
-    [10, 17, -7, 1, 1, 1, COLOR_ID_CYAN_PLATFORM],
-    [10, 20, -13, 1, 1, 1, COLOR_ID_CYAN_PLATFORM],
+    [0, -2, 2, 5, 1, COLOR_ID_GREEN_PLATFORM],
+    [0, 0, 2, 3, 3, COLOR_ID_YELLOW_PLATFORM],
+    [-5, 2, -2, 3, 3, COLOR_ID_RED_PLATFORM],
+    [5, 4, 5, 3, 3, COLOR_ID_RED_PLATFORM],
+    [1, 7, -5, 3, 3, COLOR_ID_RED_PLATFORM],
+    [1, 10, -5, 1, 3, COLOR_ID_CYAN_PLATFORM],
+    [1, 14, -5, 3, 1, COLOR_ID_GREEN_PLATFORM],
+    [10, 19.5, -10, 5, 7, COLOR_ID_RED_PLATFORM],
+    [10, 17, -7, 1, 1, COLOR_ID_CYAN_PLATFORM],
+    [10, 20, -13, 1, 1, COLOR_ID_CYAN_PLATFORM],
 
     topPyramidSlab(0),
     topPyramidSlab(1),
@@ -90,7 +91,7 @@ const PUZZLE_CODE = 'monolith';
 
 var playerX = 0;
 var playerY = 0;
-var playerZ = 0;
+var playerZ = -0.1;
 var playerHorizontalVelocity = 0; // player's velocity is always applied screen-space
 var playerVerticalVelocity = 0;
 var playerGrounded = false;
@@ -271,15 +272,11 @@ function prepareCollisionVariables() {
 }
 
 function handlePlatformCollision(platform) {
-    let [platformX, platformY, platformZ, width, height, length] = platform;
-    
-    let screenWidth = abs(width * cameraRightX) + abs(length * cameraRightZ);
-    let screenHeight = height;
-    let screenDepth = abs(length * cameraRightX) + abs(width * cameraRightZ);
+    let [platformX, platformY, platformZ, width, height] = platform;
 
-    let screenCollisionThresholdX = screenWidth / 2 + 0.5;
-    let screenCollisionThresholdY = screenHeight / 2 + 0.5;
-    let screenCollisionThresholdZ = screenDepth / 2 + 0.5;
+    let screenCollisionThresholdX = width / 2 + 0.5;
+    let screenCollisionThresholdY = height / 2 + 0.5;
+    let screenCollisionThresholdZ = screenCollisionThresholdX;
 
     let worldDiffX = platformX - playerX;
     let worldDiffY = platformY - playerY;
@@ -312,14 +309,11 @@ function handlePlatformCollision(platform) {
         // candidate for ground landing
         let nearestDepthOnGroundDiff =
             overlapsZ ? 0 : screenDiffZ > 0
-            ? max(0, screenDiffZ - screenCollisionThresholdZ + 1)
-            : min(0, screenDiffZ + screenCollisionThresholdZ - 1);
-        
-        let hasCloserGroundAlready = abs(resolveGroundDiff) < abs(nearestDepthOnGroundDiff);
-        if (!hasCloserGroundAlready) {
-            resolveGroundDiff = nearestDepthOnGroundDiff;
-            resolveGroundHeightDiff = screenDiffY + screenCollisionThresholdY + EPSILON;
-        }
+                ? max(0, screenDiffZ - screenCollisionThresholdZ + 1)
+                : min(0, screenDiffZ + screenCollisionThresholdZ - 1);
+
+        resolveGroundDiff = nearestDepthOnGroundDiff;
+        resolveGroundHeightDiff = screenDiffY + screenCollisionThresholdY + EPSILON;
     }
     else if (!(overlapsX && overlapsY) && overlapsOnScreenAfterMove) {
         // candidate for wall snapping
@@ -339,7 +333,7 @@ function resolveCollisions() {
     let canResolveForward = resolveForwardDiff > nearestFreeSpaceDiff && resolveForwardDiff < farthestFreeSpaceDiff;
     let canResolveBackward = resolveBackwardDiff > nearestFreeSpaceDiff && resolveBackwardDiff < farthestFreeSpaceDiff;
     let resolveDiff = canResolveForward ? resolveForwardDiff : canResolveBackward ? resolveBackwardDiff : 0;
-    
+
     playerX += resolveDiff * cameraForwardX;
     playerZ += resolveDiff * cameraForwardZ;
 }
@@ -354,7 +348,7 @@ function handleRespawning() {
     if (playerVerticalVelocity < -0.65) {
         playKillSound();
         sinceTeleportTimer = 0;
-        playerHorizontalVelocity = playerVerticalVelocity = 0;
+        playerVerticalVelocity = 0;
 
         playerX = respawnX;
         playerY = respawnY;
@@ -392,24 +386,22 @@ function drawPlatforms() {
 
 function drawPlayer() {
     // main player cube
-    let playerAngleShiftingTilt = -sin(shiftTimer * 2 * shiftDirection) * 0.4;
-    let playerAngle = cameraAngle + playerAngleShiftingTilt;
     cubeDrawQueue.push([
         playerX, playerY, playerZ,
-        1, 1, 1,
-        COLOR_ID_PURE_WHITE, playerAngle
+        1, 1,
+        COLOR_ID_PURE_WHITE,
+        cameraAngle + -sin(shiftTimer * 2 * shiftDirection) * 0.4
     ]);
-    
+
     // hat cube
     let hatFallingOffset = min(0, max(-0.25, playerVerticalVelocity));
-    let hatOffsetX = -0.25 * cameraRightX;
-    let hatOffsetY = 0.75 - hatFallingOffset;
-    let hatOffsetZ = -0.25 * cameraRightZ;
-    let hatAngle = cameraAngle * 2;
     cubeDrawQueue.push([
-        playerX + hatOffsetX, playerY + hatOffsetY, playerZ + hatOffsetZ,
-        0.5, 0.5, 0.5,
-        COLOR_ID_PURE_RED, hatAngle
+        playerX + -0.25 * cameraRightX,
+        playerY + 0.75 - hatFallingOffset,
+        playerZ + -0.25 * cameraRightZ,
+        0.5, 0.5,
+        COLOR_ID_PURE_RED,
+        cameraAngle * 2
     ]);
 }
 
@@ -419,7 +411,7 @@ function drawMonolithPuzzle() {
     if (blinkTimer % 1 < 0.5 && blinkTimer < 64 && !puzzleSolved) {
         drawCube([
             monolithX, 34 + getBit(PUZZLE_CODE, blinkTimer), monolithZ,
-            0.1, 0.1, 0.1,
+            0.1, 0.1,
             COLOR_ID_PURE_RED, 0
         ]);
     }
@@ -427,7 +419,7 @@ function drawMonolithPuzzle() {
     // skipping queue for monolith to be drawn behind everything else
     drawCube([
         monolithX, monolithY, monolithZ,
-        2, 4, 2,
+        2, 4,
         COLOR_ID_MONOLITH, monolithAngle
     ]);
 }
@@ -445,7 +437,7 @@ function sortDrawQueue() {
 }
 
 function drawCube(cube) {
-    let [worldX, worldY, worldZ, width, height, length, colorId, localAngle] = cube;
+    let [worldX, worldY, worldZ, width, height, colorId, localAngle] = cube;
 
     let relativeX = worldX - cameraX;
     let relativeY = worldY - cameraY;
@@ -456,27 +448,22 @@ function drawCube(cube) {
     let angle = localAngle ?? 0 - cameraAngle;
     let color = colors[colorId];
 
-    let halfTurnWrappedAngle = ((angle % PI) + PI) % PI;
-    let quarterTurnWrappedAngle = halfTurnWrappedAngle % HALF_PI;
-    
-    let shouldSwitchSides = halfTurnWrappedAngle >= HALF_PI;
-    if (shouldSwitchSides) [width, length] = [length, width];
-    
-    let edgeAngleDelta = atan2(width, length);
+    let quarterTurnWrappedAngle = ((angle % HALF_PI) + HALF_PI) % HALF_PI;
 
-    const drawWall = (edgeAngle, size, dotProduct) => {
+    const drawWall = (edgeAngle, dotProduct) => {
         let edgeAngleSin = sin(edgeAngle + quarterTurnWrappedAngle);
-        let halfDiagonalSize = sqrt(width * width + length * length) / 2;
+        let halfDiagonalSize = width * 0.707; // sqrt(2) / 2 
+        
         let edgeWallOffset = edgeAngleSin * halfDiagonalSize;
-        let wallSize = size * dotProduct;
+        let wallSize = width * dotProduct;
         let shade = dotProduct * 0.7 + 0.3;
 
         ctx.fillStyle = `rgb(${color[0] * shade} ${color[1] * shade} ${color[2] * shade})`;
         ctx.fillRect(x + edgeWallOffset, y - height / 2, wallSize, height);
     }
 
-    drawWall(PI + edgeAngleDelta, length, sin(quarterTurnWrappedAngle));
-    drawWall(TWO_PI - edgeAngleDelta, width, cos(quarterTurnWrappedAngle));
+    drawWall(HALF_PI * 2.5, sin(quarterTurnWrappedAngle));
+    drawWall(HALF_PI * 3.5, cos(quarterTurnWrappedAngle));
 }
 
 // === Audio
@@ -491,8 +478,8 @@ function playJumpSound() {
 
 function playShiftSound() {
     playSound(0.9, t => sin(
-            ((120 + shiftDirection * 15) + (sin(250 * t) + 1)) * 9 * t
-        ) * min(t, (0.9 - t) / 5, 0.1)
+        ((120 + shiftDirection * 15) + (sin(250 * t) + 1)) * 9 * t
+    ) * min(t, (0.9 - t) / 5, 0.1)
     );
 }
 
