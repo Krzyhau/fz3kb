@@ -29,7 +29,7 @@ fetch("../script.js").then(response => {
     hljs.highlightElement(sourceCodeContainer);
     
     let totalSize = minifiedCode.length + getBoilerplateLength();
-    sizeContainer.innerHTML = `${totalSize} bytes (${minifiedCode.length} script + ${getBoilerplateLength()} boilerplate)`;
+    sizeContainer.innerHTML = `${totalSize} bytes (${minifiedCode.length} script + ${getBoilerplateLength()} bootstrap)`;
 });
 
 function getBoilerplateLength() {
