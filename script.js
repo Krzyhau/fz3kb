@@ -1,6 +1,6 @@
 // === Common variables and helpers
 
-const { sin, cos, sqrt, PI, atan2, min, max, abs} = Math;
+const { sin, cos, sqrt, PI, atan2, min, max, abs, floor} = Math;
 const HALF_PI = PI / 2, TWO_PI = PI * 2;
 const SCREEN_SIZE = 720;
 const EPSILON = 0.0001;
@@ -10,8 +10,10 @@ const EPSILON = 0.0001;
 var goingLeftInputPart = 0;
 var goingRightInputPart = 0;
 var jumpingInput = false;
+var downInput = false;
 
 const JUMP_KEY = ' ';
+const GO_DOWN_KEY = 'ArrowDown';
 const LEFT_KEY = 'ArrowLeft';
 const RIGHT_KEY = 'ArrowRight';
 const SHIFT_LEFT_KEY = 'a';
@@ -21,6 +23,7 @@ document.onkeydown = e => onInputChange(e.key, true);
 document.onkeyup = e => onInputChange(e.key, false);
 function onInputChange(key, pressed) {
     if (key == JUMP_KEY) jumpingInput = pressed;
+    if (key == GO_DOWN_KEY) downInput = pressed;
     if (key == LEFT_KEY) goingLeftInputPart = pressed ? -1 : 0;
     if (key == RIGHT_KEY) goingRightInputPart = pressed ? 1 : 0;
     if (pressed) {
@@ -43,9 +46,25 @@ const colors = [
 
 // defined as [x, y, z, width, height, length, angle, colorId]
 const platforms = [
-    [0, -2, 0, 15, 1, 5, 0, 2],
-    [5, -1, 0, 1, 2, 3, 0, 3],
-    [10, -2, 0, 3, 10, 3, 0, 4],
+    [0, -2, 2, 5, 1, 5, 0, 5],
+    [0, 0, 2, 3, 3, 3, 0, 2],
+    [-5, 2, -2, 3, 3, 3, 0, 3],
+    [5, 4, 5, 3, 3, 3, 0, 3],
+    [1, 7, -5, 3, 3, 3, 0, 3],
+    [1, 10, -5, 1, 3, 1, 0, 4],
+    [1, 14, -5, 5, 1, 3, 0, 5],
+    [7.5, 14, -5, 6, 1, 3, 0, 5],
+    [10, 19.5, -10, 3, 7, 5, 0, 3],
+    [10, 17, -7, 1, 1, 1, 0, 4],
+    [10, 20, -13, 1, 1, 1, 0, 4],
+
+    [10, 25, -10, 15, 1, 15, 0, 2],
+    [10, 26, -10, 13, 1, 13, 0, 2],
+    [10, 27, -10, 11, 1, 11, 0, 2],
+    [10, 28, -10, 9, 1, 9, 0, 2],
+    [10, 29, -10, 7, 1, 7, 0, 2],
+    [10, 30, -10, 5, 1, 5, 0, 2],
+
 ]
 
 // === Game logic
@@ -56,6 +75,10 @@ var playerZ = 0;
 var playerHorizontalVelocity = 0; // player's velocity is always applied screen-space
 var playerVerticalVelocity = 0;
 var playerGrounded = false;
+
+var respawnX = 0;
+var respawnY = 0;
+var respawnZ = 0;
 
 // max distances player can teleport along screen depth without hitting a wall
 var nearestFreeSpaceDiff;
@@ -95,7 +118,7 @@ function gameLoop() {
     } else {
         preparePlayerMovement();
         applyPlayerMovement();
-        checkSafetyTeleport();
+        handleRespawning();
     }
 
     draw();
@@ -152,7 +175,7 @@ function preparePlayerMovement() {
 }
 
 function handleJumping() {
-    if (playerGrounded && jumpingInput) {
+    if (playerGrounded && jumpingInput && !downInput) {
         playJumpSound();
         playerVerticalVelocity = 0.2;
     }
@@ -225,7 +248,7 @@ function handlePlatformCollision(platform) {
             farthestFreeSpaceDiff = min(farthestFreeSpaceDiff, frontWallDiff + EPSILON);
         }
     }
-    else if (!overlapsY && overlapsOnScreenAfterMove && playerVerticalVelocity < 0) {
+    else if (!overlapsY && overlapsOnScreenAfterMove && playerVerticalVelocity < 0 && !(downInput && jumpingInput)) {
         // candidate for ground landing
         let nearestDepthOnGroundDiff =
             overlapsZ ? 0 : screenDiffZ > 0
@@ -261,20 +284,22 @@ function resolveCollisions() {
     playerZ += resolveDiff * cameraForwardZ;
 }
 
-function checkSafetyTeleport() {
-    if (playerY < -20) {
-        teleportPlayer(0, 0, 0);
+function handleRespawning() {
+    if (playerGrounded) {
+        respawnX = playerX;
+        respawnY = playerY;
+        respawnZ = playerZ;
     }
-}
 
-function teleportPlayer(x, y, z) {
-    playerX = x;
-    playerY = y;
-    playerZ = z;
+    if (playerVerticalVelocity < -0.65) {
+        playKillSound();
+        sinceTeleportTimer = 0;
+        playerHorizontalVelocity = playerVerticalVelocity = 0;
 
-    playerHorizontalVelocity = playerVerticalVelocity = 0;
-    sinceTeleportTimer = 0;
-    playKillSound();
+        playerX = respawnX;
+        playerY = respawnY;
+        playerZ = respawnZ;
+    }
 }
 
 // === Drawing
